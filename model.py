@@ -1,22 +1,26 @@
 import torch
 import torch.nn as nn
-#from . import functional as F
+from znet import ZNet
 from .constants import DEFAULT_KB
 
 
-class ZNet(nn.Module):
-    def __init__(self, root_node):
-        super().__init__()
-        self.root_node = root_node
-
+class ZNetThermo(ZNet):
+    """Thermodynamic wrapper around ZNet graph with temperature support."""
+    
     def forward(self, inputs=None, temperature=293.15, **kwargs):
         """
         Args:
-            inputs (dict, optional): Dictionary of inputs.
-            temperature (float): Temperature in Kelvin.
+            inputs (dict or Tensor, optional): Dictionary of inputs or tensor.
+            temperature (float): Temperature in Kelvin (passed to temperature-aware nodes).
             **kwargs: Alternative way to pass inputs (e.g., model(pressure=1.0)).
         """
-        # 1. Consolidate inputs from dict and kwargs
+        # 1. Handle tensor input directly (compiled graph case)
+        if isinstance(inputs, torch.Tensor):
+            # For compiled graphs, just call the node - temperature is handled internally
+            # via temperature nodes in the graph if needed
+            return self.root_node(inputs)
+        
+        # 2. Consolidate inputs from dict and kwargs
         if inputs is None:
             inputs = kwargs
         elif kwargs:
@@ -24,21 +28,16 @@ class ZNet(nn.Module):
             inputs = {**inputs, **kwargs}
             
         if not inputs:
-            raise ValueError("No inputs provided to ZNet.")
+            raise ValueError("No inputs provided to ZNetThermo.")
 
-        # 2. Check for raw data (Convenience helper)
+        # 3. Check for raw data (Convenience helper)
         # If the first value is NOT a tensor, assume we need to convert.
         if not isinstance(next(iter(inputs.values())), torch.Tensor):
              return self._convert_inputs(inputs, temperature)
 
-        # 3. Fast Path (Standard Training)
-        output = self.root_node(inputs, temperature)
-        
-        # Auto-Mix: If the output implies unmixed states (vector/tensor), 
-        # collapse them to a scalar Free Energy.
-        # Check if we have more dimensions than (Batch, 1) or if the last dim > 1.
-        # if output.ndim > 2 or (output.ndim == 2 and output.shape[1] > 1):
-        #     output = F.softmin_energy(output, temperature=temperature, k_b=DEFAULT_KB)
+        # 4. Fast Path (Standard Training)
+        # Note: temperature is passed to nodes via input if needed (e.g., ConstantNode)
+        output = self.root_node(inputs)
             
         return output
     
@@ -56,11 +55,10 @@ class ZNet(nn.Module):
             if t.ndim == 0: t = t.view(1, 1)
             elif t.ndim == 1: t = t.view(-1, 1)
             clean_inputs[k] = t
-        #return self.root_node(clean_inputs, temperature)
         return self.forward(clean_inputs, temperature)
 
     def to_Helmholtz(self, inputs):
-        """Converts an Energy Tensor to a Helmholtz Free Energy via the Legendre Transform."""
+        """Converts a Grand Potential to Helmholtz Free Energy via the Legendre Transform."""
         inputs_grad = {
             k: v.clone().detach().requires_grad_(True) 
             for k, v in inputs.items()
