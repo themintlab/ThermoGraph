@@ -1,8 +1,10 @@
 # Thermograph
 
+[![Unit Tests](https://github.com/themintlab/ThermoGraph/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/themintlab/ThermoGraph/actions/workflows/unit-tests.yml)
+
 **A domain compiler and application layer bridging classical thermodynamics with modern tensor networks.**
 
-`thermograph` is the user-facing thermodynamic application layer built on top of [**ZGraph**](../zgraph). It acts as a domain compiler—translating human-readable physical concepts (elements, phases, CALPHAD polynomials, microstate ensembles, and state variables like $T, P, \mu$) into the strict, unlabelled tensor graphs required by the `zgraph` execution engine.
+`thermograph` is the user-facing thermodynamic application layer built on top of [**ZGraph**](https://github.com/themintlab/Zgraph). It acts as a domain compiler—translating human-readable physical concepts (elements, phases, CALPHAD polynomials, microstate ensembles, and state variables like $T, P, \mu$) into the strict, unlabelled tensor graphs required by the `zgraph` execution engine.
 
 ---
 
@@ -10,7 +12,7 @@
 
 `thermograph` **knows physics, but does zero math directly**.
 
-All mathematical evaluation, tensor contraction, soft-minimum selection, and auto-differentiation are delegated to the underlying [`zgraph`](../zgraph) engine. `thermograph` handles model definition, variable index packing, unit conversions, and physical envelope management.
+All mathematical evaluation, tensor contraction, soft-minimum selection, and auto-differentiation are delegated to the underlying [`zgraph`](https://github.com/themintlab/Zgraph) engine. `thermograph` handles model definition, variable index packing, unit conversions, and physical envelope management.
 
 ### Division of Responsibilities
 
@@ -64,4 +66,4 @@ free_energy = engine.evaluate(temperature=T, chemical_potentials=[mu_Al])
 
 ## 🔗 Underlying Math Engine
 
-For low-level tensor kernel operations, soft-tropical semirings, and custom differentiable graph construction, see the [**ZGraph**](../zgraph) engine repository.
+For low-level tensor kernel operations, soft-tropical semirings, and custom differentiable graph construction, see the [**ZGraph**](https://github.com/themintlab/Zgraph) engine repository.

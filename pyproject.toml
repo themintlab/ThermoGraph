@@ -32,10 +32,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/themintlab/Zgraph"
-Repository = "https://github.com/themintlab/Zgraph"
-"Bug Tracker" = "https://github.com/themintlab/Zgraph/issues"
+Homepage = "https://github.com/themintlab/ThermoGraph"
+Repository = "https://github.com/themintlab/ThermoGraph"
+"Bug Tracker" = "https://github.com/themintlab/ThermoGraph/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["thermograph*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
