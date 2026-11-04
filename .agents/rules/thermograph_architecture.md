@@ -1,4 +1,4 @@
-# Thermograph AI Directives
+# ThermoGraph AI Directives
 
 **ATTENTION AI CODING ASSISTANTS:**
 Modify `thermograph` strictly following these rules (see `src/thermograph/ARCHITECTURE.md`):

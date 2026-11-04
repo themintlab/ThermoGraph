@@ -1,4 +1,4 @@
-# Thermograph Architecture & Design Philosophy
+# ThermoGraph Architecture & Design Philosophy
 
 `thermograph` is the Application and UI layer built on top of the `zgraph`. It acts as the bridge between human-readable thermodynamic concepts (Elements, Microstates, Enthalpies, Phases) and the strict, tensor-only requirements of the `zgraph` math engine.
 
