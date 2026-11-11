@@ -41,29 +41,50 @@ All user-facing diagnostic tools and DataFrame exports (e.g., microstate configu
 
 ## 💻 Application Usage Example
 
-Using `thermograph` to construct and evaluate thermodynamic phase models backed by `zgraph`:
+Using `thermograph` and `zgraph` to construct and evaluate thermodynamic phase models and extract phase boundaries:
 
 ```python
 import jax.numpy as jnp
-import thermograph as tg
+import zgraph as zg, thermograph as tg
 
-# 1. Define human-readable thermodynamic system (e.g., Binary System)
-# thermograph handles signal index packing, SGTE parameters, and phase setup
-system = tg.System(elements=["Ni", "Al"])
+# 1. Define coordinate signals (T, mu_Cu, mu_Ni)
+T, mu_Cu, mu_Ni = zg.SignalNodes(0, 1, 2)
+RT = tg.KB_R * T
 
-# 2. Compile physical phase models into zgraph execution nodes
-fcc_phase = tg.PhaseModel(name="FCC_A1", components=["Ni", "Al"])
-engine = fcc_phase.compile_zgraph_engine()
+# 2. Load pre-compiled SGTE unary reference models
+cu_fcc = tg.load_library("unary/GHSERCU")
+ni_fcc = tg.load_library("unary/GHSERNI")
+cu_liq = tg.load_library("unary/GLIQCU")
+ni_liq = tg.load_library("unary/GLIQNI")
 
-# 3. Evaluate physical states in intensive (T, P, mu) space
-# Inputs are mapped into signals; computation runs entirely inside zgraph
-T = 1200.0  # Kelvin
-mu_Al = -50000.0  # J/mol
-free_energy = engine.evaluate(temperature=T, chemical_potentials=[mu_Al])
+# 3. Assemble ideal solution phases and root equilibrium system
+phase_FCC = zg.FactorNode(jnp.eye(2), [mu_Cu - cu_fcc, mu_Ni - ni_fcc], tau=RT)
+phase_LIQ = zg.FactorNode(jnp.eye(2), [mu_Cu - cu_liq, mu_Ni - ni_liq], tau=RT)
+system = zg.FactorNode(jnp.eye(2), [phase_FCC, phase_LIQ], tau=0.0)
+
+# 4. Evaluate grand potential or extract T-x phase boundaries
+signals = jnp.array([1500.0, -80000.0, -80000.0])
+omega = system(signals)
 ```
+
+---
+
+## 🚀 Interactive Examples
+
+Explore interactive Jupyter notebooks running natively on Google Colab:
+
+- **Building the SGTE Unary Library** (`build_sgte_library.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/build_sgte_library.ipynb)
+- **Cu-Ni Phase Diagram** (`cu_ni_phase_diagram.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/cu_ni_phase_diagram.ipynb)
+- **Cu-Au Phase Diagram** (`cu_au_phase_diagram.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/cu_au_phase_diagram.ipynb)
+- **Si-Ge Phase Diagram** (`si_ge_phase_diagram.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/si_ge_phase_diagram.ipynb)
+- **Third-Generation CALPHAD: Einstein Oscillator** (`einstein_oscillator.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/einstein_oscillator.ipynb)
+- **Au-Ni Solid Miscibility Gap** (`au_ni_miscibility.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/au_ni_miscibility.ipynb)
+- **Cu-Mg Intermetallic Line Compounds** (`cu_mg_intermetallics.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/cu_mg_intermetallics.ipynb)
+- **Bayesian Training & Uncertainty Propagation** (`bayesian_si_training.ipynb`): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/themintlab/ThermoGraph/blob/main/examples/bayesian_si_training.ipynb)
 
 ---
 
 ## 🔗 Underlying Math Engine
 
 For low-level tensor kernel operations, soft-tropical semirings, and custom differentiable graph construction, see the [**ZGraph**](https://github.com/themintlab/ZGraph) engine repository.
+

@@ -1,12 +1,15 @@
+import ast
 import os
 import re
-import sympy
-from sympy.parsing.sympy_parser import parse_expr
 from zgraph import save
 from zgraph.core import TropicalPolynomialNode, PiecewiseNode
 from thermograph.nodes.sgte import SGTESingleNode
+from thermograph.config import LIBRARY_DIR, UNARY_TDB_PATH
 from typing import Dict, Any, List, Optional
 import jax.numpy as jnp
+
+TERM_ORDER = ["1", "T", "T*LN(T)", "T**2", "T**-1", "T**3", "T**7", "T**-9"]
+
 
 class TDBParser:
     """
@@ -16,8 +19,6 @@ class TDBParser:
     """
     def __init__(self, tdb_text):
         self.functions = self._parse_functions(tdb_text)
-        self.T = sympy.Symbol('T')
-        self.terms = [1, self.T, self.T * sympy.log(self.T), self.T**2, self.T**-1, self.T**3, self.T**7, self.T**-9]
         self.node_registry = {}
 
     def _parse_functions(self, tdb_text):
@@ -61,20 +62,62 @@ class TDBParser:
         return functions
 
     def _extract_coeffs(self, expr_str):
-        expr_str = expr_str.replace('LN(T)', 'log(T)').replace('\n', '')
-        expr = parse_expr(expr_str)
-        expr = sympy.expand(expr)
-        
-        coeffs_dict = expr.as_coefficients_dict()
-        coeffs = []
-        for term in self.terms:
-            c = coeffs_dict.get(term, 0.0)
-            coeffs.append(float(c) if hasattr(c, '__float__') else float(c))
-            
+        s = re.sub(r'\s+', '', expr_str.upper()).replace('LOG(T)', 'LN(T)')
+        if not s:
+            return [0.0] * 8, {}
+
+        tree = ast.parse(s, mode='eval')
+
+        def eval_node(node):
+            if isinstance(node, ast.Expression):
+                return eval_node(node.body)
+            if isinstance(node, ast.Constant):
+                return {"1": float(node.value)}
+            if isinstance(node, ast.Name):
+                return {node.id: 1.0}
+            if isinstance(node, ast.UnaryOp):
+                sub = eval_node(node.operand)
+                if isinstance(node.op, ast.UAdd):
+                    return sub
+                if isinstance(node.op, ast.USub):
+                    return {k: -v for k, v in sub.items()}
+            if isinstance(node, ast.BinOp):
+                left = eval_node(node.left)
+                right = eval_node(node.right)
+                if isinstance(node.op, (ast.Add, ast.Sub)):
+                    sgn = 1.0 if isinstance(node.op, ast.Add) else -1.0
+                    out = dict(left)
+                    for k, v in right.items():
+                        out[k] = out.get(k, 0.0) + sgn * v
+                    return out
+                if isinstance(node.op, ast.Mult):
+                    out = {}
+                    for k1, v1 in left.items():
+                        for k2, v2 in right.items():
+                            if k1 == "1":
+                                k = k2
+                            elif k2 == "1":
+                                k = k1
+                            else:
+                                k = f"{k1}*{k2}"
+                            out[k] = out.get(k, 0.0) + v1 * v2
+                    return out
+                if isinstance(node.op, ast.Pow):
+                    exp = int(round(right["1"]))
+                    return {f"T**{exp}": 1.0}
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id == "LN":
+                    return {"LN(T)": 1.0}
+            raise ValueError(f"Unsupported expression node in TDB: {expr_str}")
+
+        terms_dict = eval_node(tree)
+        coeffs = [float(terms_dict.get(term, 0.0)) for term in TERM_ORDER]
         deps = {}
-        for term, c in coeffs_dict.items():
-            if term not in self.terms and term != 1:
-                deps[str(term).upper()] = float(c)
+        for term, c in terms_dict.items():
+            if term not in TERM_ORDER and c != 0.0:
+                if not term.isidentifier() or term == "T":
+                    raise ValueError(f"Unsupported polynomial term '{term}' in SGTE 8-term kernel.")
+                deps[term.upper()] = float(c)
         return coeffs, deps
 
     def get_node(self, name):
@@ -117,11 +160,14 @@ class TDBParser:
         return node
 
 
-def parse_tdb(tdb_path: str, phases: Optional[List[str]] = None) -> Dict[str, Any]:
+def parse_tdb(tdb_path: Optional[str] = None, phases: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Reads a CALPHAD .tdb file and parses functional dependencies as exact ZGraph
     hierarchical subgraphs. Returns a dictionary of compiled nodes.
     """
+    if tdb_path is None or (not os.path.exists(tdb_path) and os.path.basename(tdb_path) == "unary.tdb"):
+        tdb_path = UNARY_TDB_PATH
+
     with open(tdb_path, 'r') as f:
         text = f.read()
         
@@ -142,8 +188,9 @@ def parse_tdb(tdb_path: str, phases: Optional[List[str]] = None) -> Dict[str, An
 
 
 # Backwards compatibility wrapper
-def extract_sgte_library(tdb_path: str, output_dir: str = None, phases: list = None):
-    from thermograph.config import LIBRARY_DIR
+def extract_sgte_library(tdb_path: Optional[str] = None, output_dir: str = None, phases: list = None):
+    if tdb_path is None or (not os.path.exists(tdb_path) and os.path.basename(tdb_path) == "unary.tdb"):
+        tdb_path = UNARY_TDB_PATH
     nodes = parse_tdb(tdb_path, phases)
     
     if output_dir is None:
@@ -153,3 +200,4 @@ def extract_sgte_library(tdb_path: str, output_dir: str = None, phases: list = N
     save(nodes, output_dir)
     print(f"Successfully serialized {len(nodes)} nodes to {output_dir}")
     return list(nodes.keys())
+

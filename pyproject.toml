@@ -27,8 +27,9 @@ classifiers = [
 ]
 dependencies = [
     "jax",
+    "jaxlib",
     "equinox",
-    "zgraph",
+    "zgraph>=0.1.1",
 ]
 
 [project.urls]
@@ -40,5 +41,13 @@ Repository = "https://github.com/themintlab/ThermoGraph"
 where = ["src"]
 include = ["thermograph*"]
 
+[tool.setuptools.package-data]
+thermograph = [
+    "ARCHITECTURE.md",
+    "data/*.tdb",
+    "library/**/*.zg",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
